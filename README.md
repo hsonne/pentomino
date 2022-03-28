@@ -24,3 +24,14 @@ The task is to puzzle the parts together into a rectangular field with a size
 of 12 * 5 = 60 unit squares, i.e. sized 3 x 15, 5 x 12, 6 x 10.
 
 The script `pentomino.R` finds all solutions for the 6 x 10 rectangle. 
+
+This is one possible solution:
+
+```
+T T T X M M Y Y Y Y
+I T X X X M M Y K K
+I T S X E E M K K V
+I P S S S E E E K V
+I P P U S U L V V V
+I P P U U U L L L L
+```
