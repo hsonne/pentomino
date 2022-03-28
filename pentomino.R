@@ -151,39 +151,8 @@ to_matrix <- function(p, value = "X") {
   m
 }
 
-turn <- function(m) {
-  matrix(
-    ncol = nrow(m), 
-    sapply(rev(seq_len(nrow(m))), function(i) m[i, , drop = FALSE])
-  )
-}
-
-flip <- function(m, vertical = TRUE) {
-  if (vertical) {
-    m[, rev(seq_len(ncol(m))), drop = FALSE]
-  } else {
-    m[rev(seq_len(nrow(m))), , drop = FALSE]
-  }
-}
-
-matrix_in_list <- function(m, L) {
-  stopifnot(is.list(L), is.matrix(m))
-  for (x in L) {
-    if (identical(x, m)) return(TRUE)
-  }
-  FALSE
-}
-
-add_if_new <- function(m, L) {
-  stopifnot(is.list(L), is.matrix(m))
-  if (matrix_in_list(m, L)) {
-    return(L)
-  }
-  c(L, list(m))
-}
-
-create_variants <- function(m)
-{
+create_variants <- function(m) {
+  
   add_turns <- function(v, m) {
     v <- add_if_new(m, v)
     for (i in 1:3) {
@@ -201,44 +170,58 @@ create_variants <- function(m)
   variants
 }
 
-can_be_put <- function(coords, m)
-{
+add_if_new <- function(m, L) {
+  stopifnot(is.list(L), is.matrix(m))
+  if (matrix_in_list(m, L)) {
+    return(L)
+  }
+  c(L, list(m))
+}
+
+matrix_in_list <- function(m, L) {
+  stopifnot(is.list(L), is.matrix(m))
+  for (x in L) {
+    if (identical(x, m)) return(TRUE)
+  }
+  FALSE
+}
+
+turn <- function(m) {
+  matrix(
+    ncol = nrow(m), 
+    sapply(rev(seq_len(nrow(m))), function(i) m[i, , drop = FALSE])
+  )
+}
+
+flip <- function(m, vertical = TRUE) {
+  if (vertical) {
+    m[, rev(seq_len(ncol(m))), drop = FALSE]
+  } else {
+    m[rev(seq_len(nrow(m))), , drop = FALSE]
+  }
+}
+
+upper_left <- function(x) {
+  c(1L, min(x[x[, 1L] == 1L, 2L]))
+}
+
+put_part <- function(playfield, target_coords, part_name) {
+  if (! can_be_put(target_coords, playfield))  {
+    return(NULL)
+  }
+  `[<-`(playfield, target_coords, part_name)
+}
+
+can_be_put <- function(coords, m) {
   dm <- dim(m)
   rows <- coords[, 1L]
   cols <- coords[, 2L]
-  
   all(rows >= 1L & rows <= dm[1L] & cols >= 1L & cols <= dm[2L]) && 
     all(m[coords] == "")
 }
 
-put_part <- function(playfield, target_coords, part_name)
-{
-  if (! can_be_put(target_coords, playfield))  {
-    return(NULL)
-  }
+puzzle <- function(playfield, all_coords, used = character()) {
   
-  `[<-`(playfield, target_coords, part_name)
-}
-
-next_ref <- function(x) {
-  free_coords <- which(x == "", arr.ind = TRUE)
-  
-  if (nrow(free_coords) == 0L) {
-    return(NULL)
-  }
-  
-  min_row <- min(free_coords[, 1L])
-  min_col <- min(free_coords[free_coords[, 1L] == min_row, 2L])
-  c(min_row, min_col)
-}
-
-used_parts <- function(m)
-{
-  setdiff(unique(c(m)), "")
-}
-
-puzzle <- function(playfield, all_coords, used = character())
-{
   ref <- next_ref(playfield)
   
   if (is.null(ref)) {
@@ -270,6 +253,12 @@ puzzle <- function(playfield, all_coords, used = character())
   }
 }
 
-upper_left <- function(x) {
-  c(1L, min(x[x[, 1L] == 1L, 2L]))
+next_ref <- function(x) {
+  free_coords <- which(x == "", arr.ind = TRUE)
+  if (nrow(free_coords) == 0L) {
+    return(NULL)
+  }
+  min_row <- min(free_coords[, 1L])
+  min_col <- min(free_coords[free_coords[, 1L] == min_row, 2L])
+  c(min_row, min_col)
 }
