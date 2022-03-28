@@ -15,7 +15,7 @@
 #        █                           █       █      █ █
 # 
 # The task is to puzzle the parts together into a rectangular field with a size
-# of 60 unit squares, i.e. sized 3 x 15, 5 x 12, 6 x 10.
+# of 12 * 5 = 60 unit squares, i.e. sized 3 x 15, 5 x 12, 6 x 10.
 #
 # The following script finds all solutions for the 6 x 10 rectangle. 
 # 
@@ -26,7 +26,7 @@
 if (FALSE) 
 {
   # Give one known solution, just as a simple means of defining the shapes of
-  # all pieces
+  # all pieces "at once"
   template_strings <- matrix(nrow = 6L, c(
     "TTTXMMYYYY",
     "ITXXXMMYKK",
@@ -36,7 +36,7 @@ if (FALSE)
     "IPPUUULLLL"
   ))
   
-  # Convert the vector of strings to a matrix of character
+  # Convert the matrix of strings to a matrix of character
   template_matrix <- matrix(nrow = 6L, byrow = TRUE, unlist(
     strsplit(template_strings, "")
   ))
@@ -47,11 +47,11 @@ if (FALSE)
   # Check that there are exactly 12 pieces
   stopifnot(length(piece_names) == 12L)
 
-  # Create a vector of (named) piece names
-  named_piece_names <- stats::setNames(nm = piece_names)
+  # Name the piece names (so that lapply() will use these names)
+  names(piece_names) <- piece_names
   
   # For each piece, determine the coordinates of their unit squares  
-  pieces <- lapply(named_piece_names, function(name) {
+  pieces <- lapply(piece_names, function(name) {
     to_coords(m = template_matrix, find = name)
   })
   
@@ -60,12 +60,12 @@ if (FALSE)
   
   # Create all possible variations of the pieces that result from turning or
   # flapping the pieces
-  variations <- lapply(named_piece_names, function(name) {
+  variations <- lapply(piece_names, function(name) {
     create_variants(to_matrix(pieces[[name]], value = name))
   })
   
   # Calculate the coordinates of the corresponding unit squares
-  all_coords <- lapply(named_piece_names, function(name) {
+  all_coords <- lapply(piece_names, function(name) {
     lapply(variations[[name]], to_coords, find = name)
   })
   
