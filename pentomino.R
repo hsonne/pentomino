@@ -1,51 +1,96 @@
-# Pentomino
+#
+# Pentomino: My Favourite Puzzle
+#
+# The Pentomino puzzle consists of twelve unique parts, each of which is 
+# composed of five unit squares. I gave each part the name of a letter:
+#
+# I: █  L: █    Y: █    V: █     T: █ █ █  X:  █      
+#    █     █       █ █     █          █      █ █ █
+#    █     █       █       █ █ █      █        █
+#    █     █ █     █
+#    █
+#
+# M: █ █    E: █ █     U: █   █  K:  █ █  P: █ █  S:  █ █ 
+#      █ █       █ █ █    █ █ █    █ █       █ █      █
+#        █                           █       █      █ █
+# 
+# The task is to puzzle the parts together into a rectangular field with a size
+# of 60 unit squares, i.e. sized 3 x 15, 5 x 12, 6 x 10.
+#
+# The following script finds all solutions for the 6 x 10 rectangle. 
+# 
+# Instructions:
+# - Source the whole script to define the functions below
+# - Manually go through the lines within the "if (FALSE) {...}" block
+#
 if (FALSE) 
 {
+  # Give one known solution, just as a simple means of defining the shapes of
+  # all pieces
   template_strings <- matrix(nrow = 6L, c(
-    "TTTXMMFFFF",
-    "ITXXXMMFkk",
-    "ITSXEEMkkW",
-    "IbSSSEEEkW",
-    "IbbUSULWWW",
-    "IbbUUULLLL"
+    "TTTXMMYYYY",
+    "ITXXXMMYKK",
+    "ITSXEEMKKV",
+    "IPSSSEEEKV",
+    "IPPUSULVVV",
+    "IPPUUULLLL"
   ))
   
+  # Convert the vector of strings to a matrix of character
   template_matrix <- matrix(nrow = 6L, byrow = TRUE, unlist(
     strsplit(template_strings, "")
   ))
   
-  part_names <- unique(c(template_matrix))
-  stopifnot(length(part_names) == 12L)
+  # Determine the names of the different pieces
+  piece_names <- unique(c(template_matrix))
   
-  parts <- lapply(stats::setNames(nm = part_names), function(name) {
+  # Check that there are exactly 12 pieces
+  stopifnot(length(piece_names) == 12L)
+
+  # Create a vector of (named) piece names
+  named_piece_names <- stats::setNames(nm = piece_names)
+  
+  # For each piece, determine the coordinates of their unit squares  
+  pieces <- lapply(named_piece_names, function(name) {
     to_coords(m = template_matrix, find = name)
   })
   
-  stopifnot(all(sapply(parts, nrow) == 5L))
+  # Check that each piece consists of exactly five unit squares
+  stopifnot(all(sapply(pieces, nrow) == 5L))
   
-  named_part_names <- stats::setNames(nm = names(parts))
-  
-  variations <- lapply(named_part_names, function(name) {
-    create_variants(to_matrix(parts[[name]], value = name))
+  # Create all possible variations of the pieces that result from turning or
+  # flapping the pieces
+  variations <- lapply(named_piece_names, function(name) {
+    create_variants(to_matrix(pieces[[name]], value = name))
   })
   
-  all_coords <- lapply(named_part_names, function(name) {
+  # Calculate the coordinates of the corresponding unit squares
+  all_coords <- lapply(named_piece_names, function(name) {
     lapply(variations[[name]], to_coords, find = name)
   })
   
+  # Recalculate the coordinates so that they are relative to the most upper left
+  # unit square
   for (i in seq_along(all_coords)) {
     all_coords[[i]] <- lapply(all_coords[[i]], function(x) {
       relative_to(x, upper_left(x))
     })
   }
   
+  # Define a vector of colours to be used when printing a solution
   colours <- stats::setNames(
     grDevices::gray.colors(length(all_coords)), 
     names(all_coords)
   )
   
+  # Create the representation of an empty puzzle area (rectangle)
   emptyfield <- matrix(rep("", 60L), nrow = 6L)
 
+  # Define the coordinates of the positions of the X piece. In order to prevent
+  # the puzzler from finding duplicate solutions (that can be derived from an
+  # existing solution by flapping horizontally or vertically) we fix the 
+  # position of the (fully symmetric) X piece before we start the actual 
+  # puzzling.
   x_startpositions <- list(
     c(1L, 3L), # -> 389 solutions
     c(1L, 4L), # -> 342
@@ -56,12 +101,21 @@ if (FALSE)
     c(2L, 5L)  # -> 337
   )
   
+  # Global result list to store all solutions
   solutions <- list()
-  
+
+  # Main loop
   system.time({
+    
     for (startpos in x_startpositions) {
+      
+      # Start with the empty playing area
       playfield <- emptyfield
+      
+      # Put the X piece into its current start position
       playfield <- put_part(playfield, add_offset(all_coords$X[[1L]], startpos), "X")
+      
+      # Start puzzling. The function will put solutions into the global list
       puzzle(playfield, all_coords, used = "X")
     }
   })
