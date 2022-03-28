@@ -27,18 +27,21 @@ if (FALSE)
 {
   # Give one known solution, just as a simple means of defining the shapes of
   # all pieces "at once"
-  template_strings <- matrix(nrow = 6L, c(
+  template_rows <- c(
     "TTTXMMYYYY",
     "ITXXXMMYKK",
     "ITSXEEMKKV",
     "IPSSSEEEKV",
     "IPPUSULVVV",
     "IPPUUULLLL"
-  ))
+  )
   
-  # Convert the matrix of strings to a matrix of character
+  # Show the solution
+  writeLines(template_rows)
+  
+  # Convert the template rows to a matrix of character
   template_matrix <- matrix(nrow = 6L, byrow = TRUE, unlist(
-    strsplit(template_strings, "")
+    strsplit(template_rows, "")
   ))
   
   # Determine the names of the different pieces
