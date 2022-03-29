@@ -95,11 +95,11 @@ if (FALSE)
   # position of the (fully symmetric) X piece before we start the actual 
   # puzzling.
   x_startpositions <- list(
-    c(1L, 3L), # -> 389 solutions
+    c(1L, 3L), # -> 389 solutions, 660s -> 637s
     c(1L, 4L), # -> 342
     c(1L, 5L), # -> 291
     c(2L, 2L), # -> 442
-    c(2L, 3L), # -> 262
+    c(2L, 3L), # -> 262, 355s -> 329s -> 325s -> 311s -> 305s
     c(2L, 4L), # -> 276
     c(2L, 5L)  # -> 337
   )
@@ -107,16 +107,26 @@ if (FALSE)
   # Global result list to store all solutions
   solutions <- list()
 
+  startpos <- x_startpositions[[5L]]
+  playfield <- emptyfield
+  system.time({
+    playfield <- put_piece(playfield, add_offset(all_coords$X[[1L]], startpos), "X")
+    used <- stats::setNames(logical(length(all_coords)), names(all_coords))
+    used[["X"]] <- TRUE
+    #puzzle(playfield, all_coords, used = "X")
+    puzzle(playfield, all_coords, used = used)
+  })
+  
   # Main loop
   system.time({
     
     for (startpos in x_startpositions) {
-      
+      #startpos <- x_startpositions[[1L]]
       # Start with the empty playing area
       playfield <- emptyfield
       
       # Put the X piece into its current start position
-      playfield <- put_part(playfield, add_offset(all_coords$X[[1L]], startpos), "X")
+      playfield <- put_piece(playfield, add_offset(all_coords$X[[1L]], startpos), "X")
       
       # Start puzzling. The function will put solutions into the global list
       puzzle(playfield, all_coords, used = "X")
@@ -143,9 +153,7 @@ relative_to <- function(x, ref, offset = 0L) {
 }
 
 add_offset <- function(x, ref) {
-  x[, 1L] <- x[, 1L] + ref[1L]
-  x[, 2L] <- x[, 2L] + ref[2L]
-  x
+  x + rep(ref, each = nrow(x))
 }
 
 to_matrix <- function(p, value = "X") {
@@ -208,11 +216,10 @@ upper_left <- function(x) {
   c(1L, min(x[x[, 1L] == 1L, 2L]))
 }
 
-put_part <- function(playfield, target_coords, part_name) {
-  if (! can_be_put(target_coords, playfield))  {
-    return(NULL)
-  }
-  `[<-`(playfield, target_coords, part_name)
+put_piece <- function(playfield, coords, name) {
+  if (can_be_put(coords, playfield))  {
+    `[<-`(playfield, coords, name)
+  } # else NULL
 }
 
 can_be_put <- function(coords, m) {
@@ -223,33 +230,40 @@ can_be_put <- function(coords, m) {
     all(m[coords] == "")
 }
 
-puzzle <- function(playfield, all_coords, used = character()) {
+#microbenchmark::microbenchmark(
+#  times = 10000,
+#  check = "identical"
+#)
+
+#puzzle <- function(playfield, all_coords, used = character()) {
+puzzle <- function(
+  playfield, 
+  all_coords, 
+  used = stats::setNames(logical(length(all_coords)), names(all_coords))
+) {
   
-  ref <- next_ref(playfield)
+  #findblobs:::plot_integer_matrix(playfield, colours)
+  #readline("Continue...")
   
-  if (is.null(ref)) {
+  if (all(used)) {
     solutions[[length(solutions) + 1L]] <<- playfield
     cat(length(solutions), "solutions found.\n")
     findblobs:::plot_integer_matrix(playfield, colours)
     #readline("Continue...")
-    return(playfield)
+    return()
   }
+
+  ref <- next_ref(playfield)
   
-  (possible_parts <- setdiff(names(all_coords), used))
-  
-  if (length(possible_parts) == 0L) {
-    return(NULL)
-  }
-  
-  for (part_name in possible_parts) {
+  for (part_name in names(which(! used))) {
     for (coords in all_coords[[part_name]]) {
-      target_coords <- add_offset(coords, ref)
-      new_playfield <- put_part(playfield, target_coords, part_name)
+      new_playfield <- put_piece(playfield, add_offset(coords, ref), part_name)
       if (! is.null(new_playfield)) {
         puzzle(
           playfield = new_playfield, 
           all_coords = all_coords,
-          used = c(used, part_name)
+          #used = c(used, part_name)
+          used = `[<-`(used, part_name, TRUE)
         )
       }
     }
@@ -257,11 +271,20 @@ puzzle <- function(playfield, all_coords, used = character()) {
 }
 
 next_ref <- function(x) {
-  free_coords <- which(x == "", arr.ind = TRUE)
-  if (nrow(free_coords) == 0L) {
-    return(NULL)
-  }
-  min_row <- min(free_coords[, 1L])
-  min_col <- min(free_coords[free_coords[, 1L] == min_row, 2L])
-  c(min_row, min_col)
+  # Indices of non-empty fields, when walking down the lines
+  indices <- which(t(x) == "")
+  if (length(indices)) {
+    i <- indices[1L] -1L
+    nc <- ncol(x)
+    c(i %/% nc, i %% nc) + 1L
+  } # else NULL
 }
+
+# x <- matrix(1:12, 3)
+# x[2:3, 4] <- ""
+# next_ref(x)
+# next_ref2(x)
+# 
+# microbenchmark::microbenchmark(
+#   next_ref(x), next_ref2(x), times = 10000, check = "identical"
+# )
