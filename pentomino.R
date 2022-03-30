@@ -99,21 +99,21 @@ if (FALSE)
     c(1L, 4L), # -> 342
     c(1L, 5L), # -> 291
     c(2L, 2L), # -> 442
-    c(2L, 3L), # -> 262, 355s -> 329s -> 325s -> 311s -> 305s
+    c(2L, 3L), # -> 262, 355s -> 329s -> 325s -> 311s -> 305s -> 217s
     c(2L, 4L), # -> 276
     c(2L, 5L)  # -> 337
   )
   
   # Global result list to store all solutions
   solutions <- list()
-
+  tmp_solution <- NULL
+  
   startpos <- x_startpositions[[5L]]
   playfield <- emptyfield
   system.time({
     playfield <- put_piece(playfield, add_offset(all_coords$X[[1L]], startpos), "X")
     used <- stats::setNames(logical(length(all_coords)), names(all_coords))
     used[["X"]] <- TRUE
-    #puzzle(playfield, all_coords, used = "X")
     puzzle(playfield, all_coords, used = used)
   })
   
@@ -121,7 +121,7 @@ if (FALSE)
   system.time({
     
     for (startpos in x_startpositions) {
-      #startpos <- x_startpositions[[1L]]
+
       # Start with the empty playing area
       playfield <- emptyfield
       
@@ -230,21 +230,12 @@ can_be_put <- function(coords, m) {
     all(m[coords] == "")
 }
 
-#microbenchmark::microbenchmark(
-#  times = 10000,
-#  check = "identical"
-#)
-
-#puzzle <- function(playfield, all_coords, used = character()) {
 puzzle <- function(
   playfield, 
   all_coords, 
   used = stats::setNames(logical(length(all_coords)), names(all_coords))
-) {
-  
-  #findblobs:::plot_integer_matrix(playfield, colours)
-  #readline("Continue...")
-  
+)
+{
   if (all(used)) {
     solutions[[length(solutions) + 1L]] <<- playfield
     cat(length(solutions), "solutions found.\n")
@@ -253,17 +244,29 @@ puzzle <- function(
     return()
   }
 
+  if (any(is_single(playfield == ""))) {
+    #cat("Single empty fields found:")
+    #findblobs:::plot_integer_matrix(playfield, colours)
+    #readline("Continue...")
+    return()
+  }
+  
+  # if (sum(used) > 5L) {
+  #   tmp_solution <<- playfield
+  #   findblobs:::plot_integer_matrix(playfield, colours)
+  #   readline("Continue...")
+  # }
+
   ref <- next_ref(playfield)
   
-  for (part_name in names(which(! used))) {
-    for (coords in all_coords[[part_name]]) {
-      new_playfield <- put_piece(playfield, add_offset(coords, ref), part_name)
+  for (name in names(which(! used))) {
+    for (coords in all_coords[[name]]) {
+      new_playfield <- put_piece(playfield, add_offset(coords, ref), name)
       if (! is.null(new_playfield)) {
         puzzle(
           playfield = new_playfield, 
           all_coords = all_coords,
-          #used = c(used, part_name)
-          used = `[<-`(used, part_name, TRUE)
+          used = `[<-`(used, name, TRUE)
         )
       }
     }
@@ -280,11 +283,36 @@ next_ref <- function(x) {
   } # else NULL
 }
 
-# x <- matrix(1:12, 3)
-# x[2:3, 4] <- ""
-# next_ref(x)
-# next_ref2(x)
-# 
-# microbenchmark::microbenchmark(
-#   next_ref(x), next_ref2(x), times = 10000, check = "identical"
-# )
+is_single <- function(is_free) {
+  nr <- nrow(is_free)
+  nc <- ncol(is_free)
+  
+  occupied <- ! is_free
+  
+  occupied_above <- add_true_above(occupied[-nr, ])
+  occupied_below <- add_true_below(occupied[-1L, ])
+  occupied_left <- add_true_left(occupied[, -nc])
+  occupied_right <- add_true_right(occupied[, -1L])
+  
+  is_free & occupied_above & occupied_below & occupied_left & occupied_right
+}
+
+add_true_above <- function(x) {
+  nc <- ncol(x)
+  matrix(ncol = nc, byrow = TRUE, c(rep(TRUE, nc), t(x)))
+}
+
+add_true_below <- function(x) {
+  nc <- ncol(x)
+  matrix(ncol = nc, byrow = TRUE, c(t(x), rep(TRUE, nc)))
+}
+
+add_true_left <- function(x) {
+  nr <- nrow(x)
+  matrix(nrow = nr, c(rep(TRUE, nr), x))
+}
+
+add_true_right <- function(x) {
+  nr <- nrow(x)
+  matrix(nrow = nr, c(x, rep(TRUE, nr)))
+}
