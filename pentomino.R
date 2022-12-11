@@ -23,22 +23,188 @@
 # - Source the whole script to define the functions below
 # - Manually go through the lines within the "if (FALSE) {...}" block
 #
-if (FALSE) 
+if (FALSE)
 {
   # Give one known solution, just as a simple means of defining the shapes of
   # all pieces "at once"
-  template_rows <- c(
-    "TTTXMMYYYY",
-    "ITXXXMMYKK",
-    "ITSXEEMKKV",
-    "IPSSSEEEKV",
-    "IPPUSULVVV",
-    "IPPUUULLLL"
-  )
+  template_rows <- get_template_rows()
   
   # Show the solution
   writeLines(template_rows)
+
+  # Create pieces from template, provide piece coordinates  
+  piece_info <- get_piece_info_from_template(template_rows)
+
+  # Piece names and number of pieces
+  piece_names <- names(piece_info$pieces)
+  n_pieces <- length(piece_names)
   
+  # Define a vector of colours to be used when printing a solution
+  colours <- stats::setNames(grDevices::gray.colors(n_pieces), piece_names)
+  
+  # Create the representation of an empty puzzle area (rectangle)
+  emptyfield <- get_empty_field()
+
+  # Prepare vector holding TRUE for used pieces and FALSE for unused pieces
+  x_used <- stats::setNames(logical(n_pieces), piece_names)
+  x_used[["X"]] <- TRUE
+  
+  # Global result list to store all solutions
+  solutions <- list()
+  tmp_solution <- NULL
+  
+  # Provide list of piece coordinates
+  piece_coords <- piece_info$piece_coords
+  
+  # Main loop
+  system.time({
+    
+    for (startpos in get_x_startpositions()) {
+
+      # Put X piece into empty playfield at its current start position
+      playfield <- put_piece(
+        emptyfield, 
+        coords = add_offset(piece_coords$X[[1L]], startpos), 
+        name = "X"
+      )
+      
+      # Start puzzling. The function will put solutions into the global list
+      puzzle(playfield, piece_coords, used = x_used)
+    }
+  })
+
+  #    User      System verstrichen 
+  # 1309.60        0.75     1318.87
+  
+  # Save solutions  
+  kwb.utils:::set_cache_dir("~/tmp")
+  x <- kwb.utils:::cache_and_return(solutions, name = "pentomino_solutions")
+}
+
+# Load solutions ---------------------------------------------------------------
+if (FALSE)
+{
+  kwb.utils:::set_cache_dir("~/tmp")
+  
+  # Read all solutions
+  solutions <- kwb.utils:::get_cached("pentomino_solutions")
+
+  length(solutions) # 2339
+
+  # Get piece information
+  piece_info <- get_piece_info_from_template(get_template_rows())
+  
+  # Indices of fields occupied by part X  
+  indices_list <- lapply(get_x_startpositions(), function(ref) {
+    which("X" == put_piece(
+      get_empty_field(), add_offset(piece_info$piece_coords$X[[1L]], ref), "X"
+    ))
+  })
+  
+  # Number of solutions per start position of part X
+  counts <- sapply(indices_list, function(indices) {
+    sum(sapply(solutions, function(x) {
+      all(which(x == "X") == indices)
+    }))
+  })
+
+  # Number of all solutions (for 6 x 12 playing area)
+  stopifnot(sum(counts) == length(solutions))
+
+  # Which start position of X has the least solutions?
+  which.min(counts) # 5
+  
+  # Select solutions referring to X start position 5
+  solutions_5 <- solutions[which(sapply(solutions, function(x) {
+    identical(which(x == "X"), indices_list[[5L]])
+  }))]
+  
+  length(solutions_5)
+}
+
+# Plot solutions ---------------------------------------------------------------
+if (FALSE)
+{
+  solutions <- solutions_5 # (created above)
+  
+  n <- length(solutions)
+  s1 <- solutions[[1L]]
+  
+  puzzle_ratio <- nrow(s1)/ncol(s1)
+  postcard <- list(height.cm = 10.5, width.cm = 14.8)
+
+  mfrow <- kwb.plot::bestRowColumnSetting(n, 6/10, do.call(`/`, postcard))
+  nr <- mfrow[["nrow"]]
+  nc <- mfrow[["ncol"]]
+  
+  mfrow <- optimal_row_column_pair(
+    N = length(solutions),   
+    target_width_height_ratio = 15/10
+  )
+  nr <- mfrow$nrow
+  nc <- mfrow$ncol
+  
+  nr*nc-length(solutions)
+  result <- arrange_solutions_in_matrix(solutions, nr, nc)
+  View(result)
+  nrow(result)/ncol(result)
+  
+  RColorBrewer::display.brewer.all(12L)
+  
+  #palette_name <- "Paired"
+  palette_name <- "Set3"
+  
+  colours <- stats::setNames(
+    RColorBrewer::brewer.pal(12L, palette_name), 
+    unique(c(solutions[[1L]]))
+  )
+  
+  a4 <- kwb.utils::DIN.A4()
+  
+  width.cm <- a4$height.cm
+  height.cm <- a4$width.cm
+  
+  width.cm <- postcard$width.cm
+  height.cm <- postcard$height.cm
+  
+  width.cm <- 15
+  height.cm <- 10
+  
+  file <- file.path("pentomino.png")
+  png(file, width = width.cm, height = height.cm, units = "cm", res = 600)
+  findblobs:::plot_integer_matrix(result, colours)
+  dev.off()
+  kwb.utils::hsOpenWindowsExplorer(dirname(file))
+  
+  for (i in seq_along(solutions)) {
+    kwb.plot::output_to_png(
+      FUN = findblobs:::plot_integer_matrix, 
+      args = list(solutions[[i]], colours), 
+      filename = sprintf("solution_%03d", i), 
+      res = 30
+    )
+  }
+ 
+  images <- magick::image_read(
+    dir(pattern = "^solution_...\\.png", full.names = TRUE)
+  )
+  
+  magick::image_write_gif(images, path = "solutions.gif", delay = 0.5)
+}
+
+# Functions --------------------------------------------------------------------
+
+get_template_rows <- function() c(
+  "TTTXMMYYYY",
+  "ITXXXMMYKK",
+  "ITSXEEMKKV",
+  "IPSSSEEEKV",
+  "IPPUSULVVV",
+  "IPPUUULLLL"
+)
+
+get_piece_info_from_template <- function(template_rows)
+{
   # Convert the template rows to a matrix of character
   template_matrix <- matrix(nrow = 6L, byrow = TRUE, unlist(
     strsplit(template_rows, "")
@@ -49,7 +215,7 @@ if (FALSE)
   
   # Check that there are exactly 12 pieces
   stopifnot(length(piece_names) == 12L)
-
+  
   # Name the piece names (so that lapply() will use these names)
   names(piece_names) <- piece_names
   
@@ -68,80 +234,21 @@ if (FALSE)
   })
   
   # Calculate the coordinates of the corresponding unit squares
-  all_coords <- lapply(piece_names, function(name) {
+  piece_coords <- lapply(piece_names, function(name) {
     lapply(variations[[name]], to_coords, find = name)
   })
   
   # Recalculate the coordinates so that they are relative to the most upper left
   # unit square
-  for (i in seq_along(all_coords)) {
-    all_coords[[i]] <- lapply(all_coords[[i]], function(x) {
+  for (i in seq_along(piece_coords)) {
+    piece_coords[[i]] <- lapply(piece_coords[[i]], function(x) {
       relative_to(x, upper_left(x))
     })
   }
   
-  # Define a vector of colours to be used when printing a solution
-  colours <- stats::setNames(
-    grDevices::gray.colors(length(all_coords)), 
-    names(all_coords)
-  )
-  
-  # Create the representation of an empty puzzle area (rectangle)
-  emptyfield <- matrix(rep("", 60L), nrow = 6L)
-
-  # Define the coordinates of the positions of the X piece. In order to prevent
-  # the puzzler from finding duplicate solutions (that can be derived from an
-  # existing solution by flapping horizontally or vertically) we fix the 
-  # position of the (fully symmetric) X piece before we start the actual 
-  # puzzling.
-  x_startpositions <- list(
-    c(1L, 3L), # -> 389 solutions, 660s -> 637s
-    c(1L, 4L), # -> 342
-    c(1L, 5L), # -> 291
-    c(2L, 2L), # -> 442
-    c(2L, 3L), # -> 262, 355s -> 329s -> 325s -> 311s -> 305s -> 217s
-    c(2L, 4L), # -> 276
-    c(2L, 5L)  # -> 337
-  )
-  
-  # Global result list to store all solutions
-  solutions <- list()
-  tmp_solution <- NULL
-  
-  startpos <- x_startpositions[[5L]]
-  playfield <- emptyfield
-  system.time({
-    playfield <- put_piece(playfield, add_offset(all_coords$X[[1L]], startpos), "X")
-    used <- stats::setNames(logical(length(all_coords)), names(all_coords))
-    used[["X"]] <- TRUE
-    puzzle(playfield, all_coords, used = used)
-  })
-  
-  # Main loop
-  system.time({
-    
-    for (startpos in x_startpositions) {
-
-      # Start with the empty playing area
-      playfield <- emptyfield
-      
-      # Put the X piece into its current start position
-      playfield <- put_piece(playfield, add_offset(all_coords$X[[1L]], startpos), "X")
-      
-      # Start puzzling. The function will put solutions into the global list
-      puzzle(playfield, all_coords, used = "X")
-    }
-  })
-
-  length(solutions) # 2339
-  lapply(solutions[1:100], findblobs:::plot_integer_matrix, colours)
-  kwb.utils:::set_cache_dir("~/tmp")
-  x <- kwb.utils:::cache_and_return(solutions)
-  solutions_2  <- kwb.utils:::loadObject(kwb.utils:::get_cached_file("solutions"), "x")
-  identical(solutions, solutions_2)
+  list(pieces = pieces, piece_coords = piece_coords)
 }
 
-# Functions --------------------------------------------------------------------
 to_coords <- function(m, find = "X") {
   stopifnot(is.matrix(m))
   x <- which(m == find, arr.ind = TRUE)
@@ -216,6 +323,25 @@ upper_left <- function(x) {
   c(1L, min(x[x[, 1L] == 1L, 2L]))
 }
 
+get_empty_field <- function() {
+  matrix(rep("", 60L), nrow = length(get_template_rows()))
+}
+
+# Define the coordinates of the positions of the X piece. In order to prevent
+# the puzzler from finding duplicate solutions (that can be derived from an
+# existing solution by flapping horizontally or vertically) we fix the 
+# position of the (fully symmetric) X piece before we start the actual 
+# puzzling.
+get_x_startpositions <- function() list(
+  c(1L, 3L),
+  c(1L, 4L),
+  c(1L, 5L),
+  c(2L, 2L),
+  c(2L, 3L),
+  c(2L, 4L),
+  c(2L, 5L)
+)
+
 put_piece <- function(playfield, coords, name) {
   if (can_be_put(coords, playfield))  {
     `[<-`(playfield, coords, name)
@@ -236,20 +362,27 @@ puzzle <- function(
   used = stats::setNames(logical(length(all_coords)), names(all_coords))
 )
 {
+  #findblobs:::plot_integer_matrix(playfield, colours)
+  #readline("Return...")
+  
   if (all(used)) {
     solutions[[length(solutions) + 1L]] <<- playfield
     cat(length(solutions), "solutions found.\n")
     findblobs:::plot_integer_matrix(playfield, colours)
-    #readline("Continue...")
+    #readline("Return...")
+    
     return()
   }
 
-  if (any(is_single(playfield == ""))) {
+  if (any(is_single(playfield != ""))) {
     #cat("Single empty fields found:")
     #findblobs:::plot_integer_matrix(playfield, colours)
-    #readline("Continue...")
+    #readline("Return...")
+    
     return()
   }
+
+  #readline("Continue...")
   
   # if (sum(used) > 5L) {
   #   tmp_solution <<- playfield
@@ -283,36 +416,71 @@ next_ref <- function(x) {
   } # else NULL
 }
 
-is_single <- function(is_free) {
-  nr <- nrow(is_free)
-  nc <- ncol(is_free)
+is_single <- function(occupied) {
   
-  occupied <- ! is_free
+  nr <- nrow(occupied)
+  nc <- ncol(occupied)
   
-  occupied_above <- add_true_above(occupied[-nr, ])
-  occupied_below <- add_true_below(occupied[-1L, ])
-  occupied_left <- add_true_left(occupied[, -nc])
-  occupied_right <- add_true_right(occupied[, -1L])
+  true_row <- rep(TRUE, nc)
+  true_col <- rep(TRUE, nr)
   
-  is_free & occupied_above & occupied_below & occupied_left & occupied_right
+  ! occupied & 
+    # occupied above: Add row of TRUE above matrix without last row
+    rbind(true_row, occupied[-nr, ], deparse.level = 0L) & 
+    # occupied below: Add row of TRUE below matrix without first row
+    rbind(occupied[-1L, ], true_row, deparse.level = 0L) & 
+    # occupied left: Add column of TRUE left to matrix without last column
+    cbind(true_col, occupied[, -nc], deparse.level = 0L) &
+    # occupied right: Add column of TRUE right to matrix without first column
+    cbind(occupied[, -1L], true_col, deparse.level = 0L)
 }
 
-add_true_above <- function(x) {
-  nc <- ncol(x)
-  matrix(ncol = nc, byrow = TRUE, c(rep(TRUE, nc), t(x)))
+arrange_solutions_in_matrix <- function(solutions, nrow, ncol) {
+  
+  n <- length(solutions)
+  
+  stopifnot(n <= nrow * ncol)
+  
+  indices <- seq_len(nrow * ncol)
+  indices[-seq_len(n)] <- NA
+  
+  index_matrix <- matrix(indices, byrow = TRUE, ncol = ncol)
+  
+  solution_rows <- apply(index_matrix, 1L, function(i) {
+    is_na <- is.na(i)
+    c(
+      solutions[i[! is_na]], 
+      lapply(seq_len(sum(is_na)), function(i) get_empty_field())
+    )
+  })
+  
+  result <- do.call(rbind, lapply(solution_rows, function(x) {
+    x <- lapply(x, function(xx) cbind(0L, xx))
+    x[[length(x)]] <- cbind(x[[length(x)]], 0L)
+    rbind(0L, do.call(cbind, x))
+  }))
+  
+  result <- cbind(0L, result, 0L)
+  result <- rbind(0L, result, 0L, 0L)
+  
+  result
 }
 
-add_true_below <- function(x) {
-  nc <- ncol(x)
-  matrix(ncol = nc, byrow = TRUE, c(t(x), rep(TRUE, nc)))
-}
-
-add_true_left <- function(x) {
-  nr <- nrow(x)
-  matrix(nrow = nr, c(rep(TRUE, nr), x))
-}
-
-add_true_right <- function(x) {
-  nr <- nrow(x)
-  matrix(nrow = nr, c(x, rep(TRUE, nr)))
+optimal_row_column_pair <- function(
+  N, target_width_height_ratio, size = 10, border = size
+)
+{
+  n <- seq_len(N)
+  m <- ceiling(N/n)
+  pairs <- data.frame(nrow = n, ncol = m)
+  
+  stopifnot(pairs$nrow * pairs$ncol >= N)
+  stopifnot(pairs$nrow * (pairs$ncol - 1L) < N)
+  
+  width <- pairs$ncol * (10 * size) + (pairs$ncol - 1L) * border + 4 * border
+  height <- pairs$nrow * (6 * size) + (pairs$nrow - 1L) * border + 4 * border
+  
+  ratios <- width / height
+  
+  pairs[which.min(abs(ratios - target_width_height_ratio)), ]
 }
