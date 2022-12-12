@@ -70,18 +70,10 @@ init_sudoku <- function(...)
   
   stopifnot(length(values) == 81L)
   
-  #rows <- strsplit(text_field, "\n")[[1L]]
-  #chars <- unlist(strsplit(rows, ""))
-  
-  result <- matrix(
-    data = values, #as.integer(gsub("-", "", chars)), 
-    nrow = 9L, 
-    byrow = TRUE
-  )
+  result <- matrix(values, nrow = 9L, byrow = TRUE)
   
   kwb.utils::addClass(result, "sudoku")
 }
-
 
 # print_sudoku -----------------------------------------------------------------
 print_sudoku <- function(x, ...)
