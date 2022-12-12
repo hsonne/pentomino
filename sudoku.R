@@ -5,81 +5,82 @@
 # MAIN -------------------------------------------------------------------------
 if (FALSE)
 {
-  m <- init_sudoku(text_field = "
-2-7---6-4
--4-5-2-1-
-9--6-1--7
---14-59--
----------
---91-32--
-3--8-6--2
--8-7-9-3-
-7-6---1-5")
+  m_init_1 <- init_sudoku(
+    2,0,7,0,0,0,6,0,4,
+    0,4,0,5,0,2,0,1,0,
+    9,0,0,6,0,1,0,0,7,
+    0,0,1,4,0,5,9,0,0,
+    0,0,0,0,0,0,0,0,0,
+    0,0,9,1,0,3,2,0,0,
+    3,0,0,8,0,6,0,0,2,
+    0,8,0,7,0,9,0,3,0,
+    7,0,6,0,0,0,1,0,5
+  )
   
+  
+  m_init_2 <- init_sudoku(
+    7,0,0,0,0,0,0,0,0,
+    9,0,0,0,0,4,0,0,0,
+    0,0,0,0,0,2,0,0,0,
+    6,0,0,4,0,0,0,0,0,
+    0,0,0,0,0,0,7,0,0,
+    0,0,0,0,0,0,2,3,0,
+    0,0,0,0,0,0,0,0,0,
+    0,0,0,9,0,6,3,0,5,
+    0,6,0,0,4,0,0,0,0
+  )
+  
+  m_init_3 <- init_sudoku(
+    0,0,0,0,0,6,0,0,0,
+    0,9,5,7,0,0,3,0,0,
+    4,0,0,0,9,2,0,0,5,
+    7,6,4,0,0,0,0,0,3,
+    0,0,0,0,0,0,0,0,0,
+    2,0,0,0,0,0,9,7,1,
+    5,0,0,2,1,0,0,0,9,
+    0,0,7,0,0,5,4,8,0,
+    0,0,0,8,0,0,0,0,0
+  )
+  
+  m <- m_init_3
+
   print_sudoku(m)
-  check_sudoku(m)
   
+  check_sudoku(m)
+
+  m <- fill_simple(m)
+
   (choices <- get_next(m))
   
-  m <- apply_choices(m, choices)
-
-  row_choices <- find_choice_for_row(m, choices, row = 1L)
+  (new_choices <- do.call(rbind, lapply(1:9, function(i) find_choice_for_row(m, choices, row = i))))
+  (new_choices <- do.call(rbind, lapply(1:9, function(i) find_choice_for_col(m, choices, col = i))))
+  (new_choices <- do.call(rbind, lapply(1:9, function(i) find_choice_for_group(m, choices, group = i))))
   
-  m <- apply_choices(m, row_choices)
-}
-
-# in_string_list ---------------------------------------------------------------
-in_string_list <- function(x, s) 
-{
-  stopifnot(is.character(s), length(s) == 1L)
-  x %in% strsplit(s, "[|]")[[1L]]
-}
-
-# find_choice_for_row ----------------------------------------------------------
-find_choice_for_row <- function(m, choices, row)
-{
-  stopifnot(!is.null(rownames(choices)))
-
-  row_choices <- function(choices, row) choices[choices[, "row"] == row, "col"]
+  m <- apply_choices(m, new_choices)
+  m <- fill_simple(m)
   
-  rc <- row_choices(choices, row)
-  rc_names <- names(rc)
-  
-  rn <- row_needs(m, row)
-  
-  matches <- lapply(rn, function(choice) {
-    which(sapply(seq_along(rc), function(i) {
-      in_string_list(choice, names(rc)[i])
-    }))
-  })
-  
-  is_safe <- lengths(matches) == 1L
-  
-  if (!any(is_safe)) {
-    return(NULL)
-  }
-  
-  cbind(
-    row = row, 
-    col = unname(rc[unlist(matches[is_safe])]), 
-    choice = rn[is_safe]
-  )
+  print_sudoku(m)
 }
 
 # init_sudoku ------------------------------------------------------------------
-init_sudoku <- function(text_field)
+init_sudoku <- function(...)
 {
-  rows <- strsplit(text_field, "\n")[[1L]]
-  chars <- unlist(strsplit(rows, ""))
+  values <- c(...)
+  
+  stopifnot(length(values) == 81L)
+  
+  #rows <- strsplit(text_field, "\n")[[1L]]
+  #chars <- unlist(strsplit(rows, ""))
   
   result <- matrix(
-    data = as.integer(gsub("-", "", chars)), 
+    data = values, #as.integer(gsub("-", "", chars)), 
     nrow = 9L, 
     byrow = TRUE
   )
   
   kwb.utils::addClass(result, "sudoku")
 }
+
 
 # print_sudoku -----------------------------------------------------------------
 print_sudoku <- function(x, ...)
@@ -88,7 +89,7 @@ print_sudoku <- function(x, ...)
   
   to_row <- function(y) {
     y <- as.character(y)
-    y[is.na(y)] <- " "
+    y[y == "0"] <- " "
     paste(collapse(y[1:3]), 
           collapse(y[4:6]), 
           collapse(y[7:9]), sep = "|")    
@@ -113,12 +114,12 @@ print_sudoku <- function(x, ...)
 check_sudoku <- function(x)
 {
   stopifnot(inherits(x, "sudoku"))
-
+  
   check_group <- function(x) {
-    y <- x[!is.na(x)]
+    y <- x[x != 0L]
     all(y >= 1L & y <= 9L & !duplicated(y))
   }
-
+  
   split_sudoku <- function(x) unname(split(m, get_group_matrix()))
   
   c(
@@ -126,6 +127,79 @@ check_sudoku <- function(x)
     col_check = all(apply(x, 2L, check_group)),
     group_check = all(sapply(split_sudoku(x), check_group))
   )
+}
+
+
+# fill_simple ------------------------------------------------------------------
+fill_simple <- function(m)
+{
+  finished <- FALSE
+  
+  while (!finished) {
+    
+    print(choices <- get_next(m))
+    
+    if (!is.null(choices) && nrow(choices) && ncol(choices) > 2L) {
+      m <- apply_choices(m, choices)      
+    } else {
+      finished <- TRUE
+    }
+  }
+  
+  m
+}
+
+# get_next ---------------------------------------------------------------------
+get_next <- function(x)
+{
+  is_empty <- x == 0L
+  
+  if (!any(is_na)) {
+    message("No more empty fields.")
+    return()
+  }
+  
+  positions <- which(is_empty, arr.ind = TRUE)
+  
+  candidates <- get_candidates(x, positions = positions)
+  
+  n_candidates <- lengths(candidates)
+  
+  has_one <- n_candidates == 1L
+  
+  if (any(has_one)) {
+    result <- positions[has_one, , drop = FALSE]
+    result <- cbind(result, choice = unlist(candidates[has_one]))
+    return(result)
+  }
+  
+  result <- positions
+  rownames(result) <- sapply(candidates, paste, collapse = "|")
+  
+  result
+}
+
+# get_candidates ---------------------------------------------------------------
+get_candidates <- function(x, i, j, positions = NULL) 
+{
+  stopifnot(inherits(x, "sudoku"))
+  
+  if (!is.null(positions)) {
+    return(apply(
+      X = positions, 
+      MARGIN = 1L, 
+      FUN = function(pos) get_candidates(x, pos[1L], pos[2L]),
+      simplify = FALSE
+    ))
+  }
+  
+  group_matrix <- get_group_matrix()
+  
+  cands <- 1:9
+  
+  cands <- setdiff(cands, x[i, ])
+  cands <- setdiff(cands, x[, j])
+  setdiff(cands, x[which(group_matrix == group_matrix[i, j])])
 }
 
 # get_group_matrix -------------------------------------------------------------
@@ -142,66 +216,96 @@ get_group_matrix <- function()
   ))
 }
 
-# get_next ---------------------------------------------------------------------
-get_next <- function(x)
-{
-  positions <- which(is.na(x), arr.ind = TRUE)
-  
-  candidates <- get_candidates(x, positions = positions)
-  
-  n_candidates <- lengths(candidates)
-  
-  is_safe <- n_candidates == 1L
-  
-  if (!any(is_safe)) {
-    has_two <- n_candidates == 2L
-    result <- positions[has_two, , drop = FALSE]
-    rownames(result) <- sapply(candidates[has_two], paste, collapse = "|")
-    return(result)
-  }
-  
-  cbind(
-    positions[is_safe, , drop = FALSE], 
-    choice = unlist(candidates[is_safe])
-  )
-}
-
-# get_candidates ---------------------------------------------------------------
-get_candidates <- function(x, i, j, positions = NULL) 
-{
-  stopifnot(inherits(x, "sudoku"))
-  
-  if (!is.null(positions)) {
-    return(apply(
-      X = positions, 
-      MARGIN = 1L, 
-      FUN = function(ij) get_candidates(x, ij[1L], ij[2L]),
-      simplify = FALSE
-    ))
-  }
-  
-  group_matrix <- get_group_matrix()
-  
-  cands <- 1:9
-  
-  cands <- setdiff(cands, x[i, ])
-  cands <- setdiff(cands, x[, j])
-  setdiff(cands, x[which(group_matrix == group_matrix[i, j])])
-}
-
 # apply_choices ----------------------------------------------------------------
 apply_choices <- function(m, choices)
 {
-  m[choices[, -3L, drop = FALSE]] <- choices[, 3L]
+  m[choices[, 1:2, drop = FALSE]] <- choices[, 3L]
   m
 }
 
-row_needs <- function(x, i)
+# find_choice_for_row ----------------------------------------------------------
+find_choice_for_row <- function(m, choices, row)
 {
+  find_choice_genric(m, choices, index = row, type = 1L)
+}
+
+# find_choice_for_col ----------------------------------------------------------
+find_choice_for_col <- function(m, choices, col)
+{
+  find_choice_genric(m, choices, index = col, type = 2L)
+}
+
+# find_choice_for_group --------------------------------------------------------
+find_choice_for_group <- function(m, choices, group)
+{
+  find_choice_genric(m, choices, index = group, type = 3L)
+}
+
+# find_choice_genric -----------------------------------------------------------
+find_choice_genric <- function(m, choices, index, type)
+{
+  stopifnot(type %in% 1:3)
+  stopifnot(!is.null(rownames(choices)))
+  
+  # Relevant choices: rc
+  rc <- list(row_choices, col_choices, group_choices)[[type]](choices, index)
+  needs <- list(row_needs, col_needs, group_needs)[[type]](m, index)
+  
+  matches <- lapply(needs, function(choice) {
+    which(sapply(rownames(rc), function(string_list) {
+      in_string_list(choice, string_list)
+    }))
+  })
+  
+  is_unambiguous <- lengths(matches) == 1L
+  
+  if (!any(is_unambiguous)) {
+    return(NULL)
+  }
+  
+  result <- rc[unlist(matches[is_unambiguous]), , drop = FALSE]
+  
+  rownames(result) <- NULL
+  
+  cbind(result, choice = needs[is_unambiguous])
+}
+
+# row_choices ------------------------------------------------------------------
+row_choices <- function(choices, row) {
+  choices[choices[, "row"] == row, , drop = FALSE]
+}
+
+# col_choices ------------------------------------------------------------------
+col_choices <- function(choices, col) {
+  choices[choices[, "col"] == col, , drop = FALSE]
+}
+
+# group_choices ----------------------------------------------------------------
+group_choices <- function(choices, group)
+{
+  group_coords <- which(get_group_matrix() == group, arr.ind = TRUE)
+  paste_coords <- function(coords) paste(coords[, "row"], coords[, "col"])
+  choices[paste_coords(choices) %in% paste_coords(group_coords), , drop = FALSE]
+}
+
+# row_needs --------------------------------------------------------------------
+row_needs <- function(x, i) {
   setdiff(1:9, x[i, ])
 }
 
-col_needs <- function(x, j)
-{
+# col_needs --------------------------------------------------------------------
+col_needs <- function(x, j) {
   setdiff(1:9, x[, j])
+}
+
+# group_needs ------------------------------------------------------------------
+group_needs <- function(x, k) {
+  setdiff(1:9, x[which(get_group_matrix() == k, arr.ind = TRUE)])
+}
+
+# in_string_list ---------------------------------------------------------------
+in_string_list <- function(x, s) 
+{
+  stopifnot(is.character(s), length(s) == 1L)
+  x %in% strsplit(s, "[|]")[[1L]]
 }
