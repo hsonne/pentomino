@@ -5,7 +5,7 @@
 # MAIN -------------------------------------------------------------------------
 if (FALSE)
 {
-  m_init_1 <- init_sudoku(
+  m_1 <- init_sudoku(
     2,0,7,0,0,0,6,0,4,
     0,4,0,5,0,2,0,1,0,
     9,0,0,6,0,1,0,0,7,
@@ -17,8 +17,7 @@ if (FALSE)
     7,0,6,0,0,0,1,0,5
   )
   
-  
-  m_init_2 <- init_sudoku(
+  m_2 <- init_sudoku(
     7,0,0,0,0,0,0,0,0,
     9,0,0,0,0,4,0,0,0,
     0,0,0,0,0,2,0,0,0,
@@ -30,7 +29,7 @@ if (FALSE)
     0,6,0,0,4,0,0,0,0
   )
   
-  m_init_3 <- init_sudoku(
+  m_3 <- init_sudoku(
     0,0,0,0,0,6,0,0,0,
     0,9,5,7,0,0,3,0,0,
     4,0,0,0,9,2,0,0,5,
@@ -42,7 +41,7 @@ if (FALSE)
     0,0,0,8,0,0,0,0,0
   )
   
-  m <- m_init_3
+  m <- m_1
 
   print_sudoku(m)
   
@@ -52,9 +51,11 @@ if (FALSE)
 
   (choices <- get_next(m))
   
-  (new_choices <- do.call(rbind, lapply(1:9, function(i) find_choice_for_row(m, choices, row = i))))
-  (new_choices <- do.call(rbind, lapply(1:9, function(i) find_choice_for_col(m, choices, col = i))))
-  (new_choices <- do.call(rbind, lapply(1:9, function(i) find_choice_for_group(m, choices, group = i))))
+  (new_choices <- do.call(rbind, c(
+    lapply(1:9, find_choice, m = m, choices = choices, type = 1L),
+    lapply(1:9, find_choice, m = m, choices = choices, type = 2L),
+    lapply(1:9, find_choice, m = m, choices = choices, type = 3L)
+  )))
   
   m <- apply_choices(m, new_choices)
   m <- fill_simple(m)
@@ -137,7 +138,7 @@ fill_simple <- function(m)
   
   while (!finished) {
     
-    print(choices <- get_next(m))
+    choices <- get_next(m)
     
     if (!is.null(choices) && nrow(choices) && ncol(choices) > 2L) {
       m <- apply_choices(m, choices)      
@@ -154,7 +155,7 @@ get_next <- function(x)
 {
   is_empty <- x == 0L
   
-  if (!any(is_na)) {
+  if (!any(is_empty)) {
     message("No more empty fields.")
     return()
   }
@@ -223,26 +224,8 @@ apply_choices <- function(m, choices)
   m
 }
 
-# find_choice_for_row ----------------------------------------------------------
-find_choice_for_row <- function(m, choices, row)
-{
-  find_choice_genric(m, choices, index = row, type = 1L)
-}
-
-# find_choice_for_col ----------------------------------------------------------
-find_choice_for_col <- function(m, choices, col)
-{
-  find_choice_genric(m, choices, index = col, type = 2L)
-}
-
-# find_choice_for_group --------------------------------------------------------
-find_choice_for_group <- function(m, choices, group)
-{
-  find_choice_genric(m, choices, index = group, type = 3L)
-}
-
-# find_choice_genric -----------------------------------------------------------
-find_choice_genric <- function(m, choices, index, type)
+# find_choice ------------------------------------------------------------------
+find_choice <- function(m, choices, index, type)
 {
   stopifnot(type %in% 1:3)
   stopifnot(!is.null(rownames(choices)))
