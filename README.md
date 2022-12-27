@@ -36,4 +36,6 @@ I P P U S U L V V V
 I P P U U U L L L L
 ```
 
+And these are graphical representations of all solutions:
+
 ![All solutions for x in start position 5](solutions.gif)
