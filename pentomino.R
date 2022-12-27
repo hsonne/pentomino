@@ -418,21 +418,15 @@ next_ref <- function(x) {
 
 is_single <- function(occupied) {
   
-  nr <- nrow(occupied)
-  nc <- ncol(occupied)
-  
-  true_row <- rep(TRUE, nc)
-  true_col <- rep(TRUE, nr)
-  
   ! occupied & 
     # occupied above: Add row of TRUE above matrix without last row
-    rbind(true_row, occupied[-nr, ], deparse.level = 0L) & 
+    rbind(TRUE, occupied[-nrow(occupied), ]) & 
     # occupied below: Add row of TRUE below matrix without first row
-    rbind(occupied[-1L, ], true_row, deparse.level = 0L) & 
+    rbind(occupied[-1L, ], TRUE) & 
     # occupied left: Add column of TRUE left to matrix without last column
-    cbind(true_col, occupied[, -nc], deparse.level = 0L) &
+    cbind(TRUE, occupied[, -ncol(occupied)]) &
     # occupied right: Add column of TRUE right to matrix without first column
-    cbind(occupied[, -1L], true_col, deparse.level = 0L)
+    cbind(occupied[, -1L], TRUE)
 }
 
 arrange_solutions_in_matrix <- function(solutions, nrow, ncol) {
