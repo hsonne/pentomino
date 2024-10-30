@@ -2,6 +2,15 @@
 # Sudouku
 #
 
+# Define group matrix and group indices ----------------------------------------
+group_matrix <- matrix(ncol = 9L, byrow = TRUE, c(
+  rep(rep(1:3, each = 3), 3),
+  rep(rep(4:6, each = 3), 3),
+  rep(rep(7:9, each = 3), 3)
+))
+
+group_indices <- lapply(1:9, function(i) which(group_matrix == i))
+
 # MAIN -------------------------------------------------------------------------
 if (FALSE)
 {
@@ -41,14 +50,14 @@ if (FALSE)
     0,0,0,8,0,0,0,0,0
   )
   
-  m <- m_1
-
-  print_sudoku(m)
+  solve_sudoku(m_1)
+  solve_sudoku(m_2)
+  solve_sudoku(m_3)
   
-  check_sudoku(m)
-
+  m <- m_1
+  m
   m <- fill_simple(m)
-
+  
   (choices <- get_next(m))
   
   (new_choices <- do.call(rbind, c(
@@ -59,86 +68,91 @@ if (FALSE)
   
   m <- apply_choices(m, new_choices)
   m <- fill_simple(m)
-  
-  print_sudoku(m)
+  m
 }
 
 # init_sudoku ------------------------------------------------------------------
 init_sudoku <- function(...)
 {
   values <- c(...)
-  
   stopifnot(length(values) == 81L)
-  
   result <- matrix(values, nrow = 9L, byrow = TRUE)
-  
-  kwb.utils::addClass(result, "sudoku")
+  structure(result, class = "sudoku")
 }
 
-# print_sudoku -----------------------------------------------------------------
-print_sudoku <- function(x, ...)
+# print.sudoku -----------------------------------------------------------------
+print.sudoku <- function(x, ...)
 {
-  collapse <- function(x) paste(x, collapse = " ")
-  
-  to_row <- function(y) {
-    y <- as.character(y)
-    y[y == "0"] <- " "
-    paste(collapse(y[1:3]), 
-          collapse(y[4:6]), 
-          collapse(y[7:9]), sep = "|")    
+  x[x == 0] <- " "
+
+  to_row <- function(x, sep = "\u2502") {
+    collapse <- function(x) paste(x, collapse = " ")
+    paste(
+      collapse(x[1:3]), 
+      collapse(x[4:6]), 
+      collapse(x[7:9]), 
+      sep = sep,
+      collapse = " "
+    )
   }
+
+  to_rows <- function(x) apply(x, 1L, to_row)
+  
+  dashes <- paste(rep("\u2500", 5L), collapse = "")
+  cross <- "\u253C"
+  sep_line <- paste0(dashes, cross, dashes, cross, dashes)
   
   writeLines(c(
-    to_row(x[1L, ]), 
-    to_row(x[2L, ]), 
-    to_row(x[3L, ]), 
-    "-----+-----+-----",
-    to_row(x[4L, ]),
-    to_row(x[5L, ]),
-    to_row(x[6L, ]),
-    "-----+-----+-----",
-    to_row(x[7L, ]),
-    to_row(x[8L, ]),
-    to_row(x[9L, ])
+    "=== Field ===",
+    to_rows(x[1:3, ]), 
+    sep_line, 
+    to_rows(x[4:6, ]), 
+    sep_line, 
+    to_rows(x[7:9, ])
   ))
 }
 
-# check_sudoku -----------------------------------------------------------------
-check_sudoku <- function(x)
+# solve_sudoku -----------------------------------------------------------------
+solve_sudoku <- function(m)
 {
-  stopifnot(inherits(x, "sudoku"))
-  
-  check_group <- function(x) {
-    y <- x[x != 0L]
-    all(y >= 1L & y <= 9L & !duplicated(y))
+  if (!any(is_empty <- m == 0L)) {
+    return(m)
   }
   
-  split_sudoku <- function(x) unname(split(m, get_group_matrix()))
+  pos <- which(is_empty, arr.ind = TRUE)[1L, ]
+  i <- pos[1L]
+  j <- pos[2L]
   
-  c(
-    row_check = all(apply(x, 1L, check_group)),
-    col_check = all(apply(x, 2L, check_group)),
-    group_check = all(sapply(split_sudoku(x), check_group))
-  )
+  for (value in get_candidates(m, i, j)) {
+    m[i, j] <- value
+    if (!is.null(m_new <- solve_sudoku(m))) {
+      return(m_new)
+    }
+  }
 }
 
+# get_candidates ---------------------------------------------------------------
+get_candidates <- function(x, i, j)
+{
+  cands <- 1:9
+  cands <- setdiff(cands, x[i, ])
+  cands <- setdiff(cands, x[, j])
+  group <- group_matrix[i, j]
+  setdiff(cands, x[group_indices[[group]]])
+}
 
 # fill_simple ------------------------------------------------------------------
 fill_simple <- function(m)
 {
   finished <- FALSE
-  
   while (!finished) {
-    
     choices <- get_next(m)
-    
     if (!is.null(choices) && nrow(choices) && ncol(choices) > 2L) {
       m <- apply_choices(m, choices)      
     } else {
       finished <- TRUE
     }
   }
-  
   m
 }
 
@@ -146,67 +160,27 @@ fill_simple <- function(m)
 get_next <- function(x)
 {
   is_empty <- x == 0L
-  
   if (!any(is_empty)) {
     message("No more empty fields.")
     return()
   }
-  
   positions <- which(is_empty, arr.ind = TRUE)
-  
-  candidates <- get_candidates(x, positions = positions)
-  
+  candidates <- apply(
+    X = positions, 
+    MARGIN = 1L, 
+    FUN = function(pos) get_candidates(x, pos[1L], pos[2L]),
+    simplify = FALSE
+  )
   n_candidates <- lengths(candidates)
-  
   has_one <- n_candidates == 1L
-  
   if (any(has_one)) {
     result <- positions[has_one, , drop = FALSE]
     result <- cbind(result, choice = unlist(candidates[has_one]))
     return(result)
   }
-  
   result <- positions
   rownames(result) <- sapply(candidates, paste, collapse = "|")
-  
   result
-}
-
-# get_candidates ---------------------------------------------------------------
-get_candidates <- function(x, i, j, positions = NULL) 
-{
-  stopifnot(inherits(x, "sudoku"))
-  
-  if (!is.null(positions)) {
-    return(apply(
-      X = positions, 
-      MARGIN = 1L, 
-      FUN = function(pos) get_candidates(x, pos[1L], pos[2L]),
-      simplify = FALSE
-    ))
-  }
-  
-  group_matrix <- get_group_matrix()
-  
-  cands <- 1:9
-  
-  cands <- setdiff(cands, x[i, ])
-  cands <- setdiff(cands, x[, j])
-  setdiff(cands, x[which(group_matrix == group_matrix[i, j])])
-}
-
-# get_group_matrix -------------------------------------------------------------
-get_group_matrix <- function()
-{
-  do.call(rbind, lapply(
-    X = 0:2, 
-    FUN = function(i) {
-      do.call(cbind, lapply(
-        X = seq_len(3L) + 3L * i, 
-        FUN = function(k) matrix(rep(k, 9L), 3L)
-      ))  
-    }
-  ))
 }
 
 # apply_choices ----------------------------------------------------------------
@@ -258,7 +232,7 @@ col_choices <- function(choices, col) {
 # group_choices ----------------------------------------------------------------
 group_choices <- function(choices, group)
 {
-  group_coords <- which(get_group_matrix() == group, arr.ind = TRUE)
+  group_coords <- which(group_matrix == group, arr.ind = TRUE)
   paste_coords <- function(coords) paste(coords[, "row"], coords[, "col"])
   choices[paste_coords(choices) %in% paste_coords(group_coords), , drop = FALSE]
 }
@@ -275,7 +249,7 @@ col_needs <- function(x, j) {
 
 # group_needs ------------------------------------------------------------------
 group_needs <- function(x, k) {
-  setdiff(1:9, x[which(get_group_matrix() == k, arr.ind = TRUE)])
+  setdiff(1:9, x[which(group_matrix == k, arr.ind = TRUE)])
 }
 
 # in_string_list ---------------------------------------------------------------
